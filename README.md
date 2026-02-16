@@ -65,10 +65,10 @@ trading-bot/
 ├── CHANGELOG.md
 ├── .gitignore
 ├── docs/
-│   ├── architecture.md          # Diagramas sistema
-│   ├── setup-guide.md           # Instalación paso a paso
-│   ├── api-costs.md             # Tracking costes reales
-│   └── telegram-commands.md     # Guía comandos
+│   ├── architecture.md
+│   ├── setup-guide.md 
+│   ├── api-costs.md  
+│   └── telegram-commands.md 
 ├── lambdas/
 │   ├── daily_analysis/
 │   │   ├── handler.py
@@ -82,39 +82,21 @@ trading-bot/
 │       ├── handler.py
 │       └── requirements.txt
 ├── config/
-│   ├── rules.json.example       # Template reglas trading
+│   ├── rules.json.example  
 │   └── aws/
-│       └── infrastructure.yaml  # CloudFormation/Terraform
+│       └── infrastructure.yaml  
 ├── scripts/
-│   ├── deploy.sh                # Deploy automatizado
-│   ├── test_local.py            # Testing local
-│   └── setup_aws.sh             # Setup inicial AWS
+│   ├── deploy.sh 
+│   ├── test_local.py 
+│   └── setup_aws.sh 
 └── tests/
     ├── test_analysis.py
     └── test_telegram.py
 ```
 
-## 🚀 Setup Rápido
-
-Ver [docs/setup-guide.md](docs/setup-guide.md) para instalación completa.
-```bash
-# Clonar repo
-git clone https://github.com/vthewolf/trading-bot.git
-cd trading-bot
-
-# Instalar dependencias
-pip install -r requirements.txt
-
-# Configurar secrets (ver setup-guide.md)
-# ...
-
-# Deploy a AWS
-./scripts/deploy.sh
-```
-
 ## 🔐 Seguridad
 
-- Secrets en AWS Parameter Store (nunca en repo)
+- Secrets en AWS Parameter Store
 - `.gitignore` configurado para excluir credenciales
 - IAM roles con permisos mínimos necesarios
 - Alertas billing configuradas
@@ -157,7 +139,7 @@ Ver [CHANGELOG.md](CHANGELOG.md) para historial cambios detallado.
 
 ## 🤝 Contribución
 
-Proyecto personal de aprendizaje. No abierto a contribuciones externas de momento.
+Proyecto personal de aprendizaje. No abierto a contribuciones externas.
 
 ## 📄 Licencia
 
