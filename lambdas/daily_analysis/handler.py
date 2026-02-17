@@ -17,12 +17,9 @@ logger.setLevel(logging.INFO)
 # Cargar .env si estamos en local
 load_dotenv()
 
+
 def get_config():
-    """
-    Lee configuración según entorno.
-    Local: desde .env
-    AWS Lambda: desde Parameter Store
-    """
+    """Lee configuración según entorno."""
     environment = os.getenv("ENVIRONMENT", "aws")
     
     if environment == "local":
@@ -35,7 +32,6 @@ def get_config():
             "aws_region": os.getenv("AWS_REGION", "eu-west-1"),
             "mock_claude": os.getenv("MOCK_CLAUDE", "false")
         }
-    
     else:
         logger.info("Entorno AWS - leyendo Parameter Store")
         ssm = boto3.client("ssm", region_name="eu-west-1")
@@ -58,28 +54,21 @@ def get_config():
         config["aws_region"] = "eu-west-1"
         
         return config
+
     
 def load_portfolio(config):
-    """
-    Carga portfolio actual y historial desde S3 o archivos locales.
-    """
+    """Carga portfolio actual y blacklist desde S3 o archivos locales."""
     environment = os.getenv("ENVIRONMENT", "aws")
     
     if environment == "local":
         logger.info("Cargando portfolio desde archivos locales")
-        
-        # Portfolio mock para testing
         portfolio = {
             "positions": [],
             "cash_eur": 2300,
             "last_updated": datetime.now().isoformat()
         }
-        
-        last_trades = []
-        patterns = {}
         blacklist = []
         rules = load_rules_local()
-        external_tips = []
         
     else:
         s3 = boto3.client("s3", region_name=config["aws_region"])
@@ -88,23 +77,14 @@ def load_portfolio(config):
         # Portfolio actual
         portfolio = load_s3_json(s3, bucket, "portfolio/current_positions.json")
         
-        # Historial últimas 10 operaciones
-        last_trades = load_s3_json(s3, bucket, "history/last_30_trades.json")
-        
-        # Patterns aprendidos
-        patterns = load_s3_json(s3, bucket, "learning/patterns_learned.json")
-        
         # Tickers blacklist
         blacklist_raw = load_s3_text(s3, bucket, "external/tickers_blacklist.txt")
         blacklist = [t.strip() for t in blacklist_raw.split("\n") if t.strip()]
         
         # Reglas trading
         rules = load_s3_json(s3, bucket, "config/rules.json")
-        
-        # Tips externos (Zumitow + amigos)
-        external_tips = load_s3_json(s3, bucket, "external/user_tips.json")
     
-    return portfolio, last_trades, patterns, blacklist, rules, external_tips
+    return portfolio, blacklist, rules
 
 
 def load_rules_local():
@@ -131,15 +111,12 @@ def load_s3_text(s3_client, bucket, key):
         return response["Body"].read().decode("utf-8")
     except:
         return ""
+
     
 def get_market_data(portfolio):
-    """
-    Descarga datos actuales de mercado para posiciones en portfolio.
-    Siempre incluye BTC y ETH.
-    """
+    """Descarga solo precio actual para posiciones en portfolio."""
     tickers = []
     
-    # Tickers del portfolio actual
     if portfolio.get("positions"):
         tickers = [p["ticker"] for p in portfolio["positions"]]
     
@@ -149,24 +126,14 @@ def get_market_data(portfolio):
         try:
             time.sleep(5)
             stock = yf.Ticker(ticker)
-            hist = stock.history(period="5d")
-            info = stock.info
+            hist = stock.history(period="1d")
             
             if not hist.empty:
                 current_price = hist["Close"].iloc[-1]
-                prev_price = hist["Close"].iloc[-2] if len(hist) > 1 else current_price
-                change_pct = ((current_price - prev_price) / prev_price) * 100
-                
                 market_data[ticker] = {
-                    "current_price": round(float(current_price), 2),
-                    "change_24h_pct": round(float(change_pct), 2),
-                    "volume": int(hist["Volume"].iloc[-1]),
-                    "week_high": round(float(hist["High"].max()), 2),
-                    "week_low": round(float(hist["Low"].min()), 2),
-                    "pe_ratio": info.get("trailingPE", "N/A"),
-                    "market_cap": info.get("marketCap", "N/A")
+                    "current_price": round(float(current_price), 2)
                 }
-                logger.info(f"✅ {ticker}: ${current_price:.2f} ({change_pct:+.2f}%)")
+                logger.info(f"✅ {ticker}: {current_price:.2f}€")
             
         except Exception as e:
             logger.error(f"❌ Error descargando {ticker}: {e}")
@@ -174,198 +141,98 @@ def get_market_data(portfolio):
     
     return market_data
 
-def build_prompt(portfolio, market_data, last_trades, patterns, blacklist, rules, external_tips):
-    """
-    Construye el prompt completo para Claude.
-    """
+
+def build_prompt(portfolio, market_data, blacklist, rules):
+    """Construye prompt minimalista para Opus."""
     today = datetime.now().strftime("%d/%m/%Y %H:%M CET")
     
-    # Calcular P&L posiciones actuales
-    positions_detail = []
-    for pos in portfolio.get("positions", []):
-        ticker = pos["ticker"]
-        entry_price = pos["entry_price"]
-        quantity = pos["quantity"]
-        
-        if ticker in market_data and "current_price" in market_data[ticker]:
-            current = market_data[ticker]["current_price"]
-            pnl_pct = ((current - entry_price) / entry_price) * 100
-            pnl_eur = (current - entry_price) * quantity
-            
-            stop_loss_price = entry_price * (1 + rules["trading_rules"]["stop_loss_percent"] / 100)
-            target_price = entry_price * (1 + rules["trading_rules"]["target_profit_percent"] / 100)
-            
-            positions_detail.append({
-                "ticker": ticker,
-                "quantity": quantity,
-                "entry_price": entry_price,
-                "current_price": current,
-                "pnl_pct": round(pnl_pct, 2),
-                "pnl_eur": round(pnl_eur, 2),
-                "stop_loss_price": round(stop_loss_price, 2),
-                "target_price": round(target_price, 2),
-                "change_24h": market_data[ticker].get("change_24h_pct", "N/A")
-            })
+    # Solo incluir posiciones si existen
+    positions_text = ""
+    if portfolio.get("positions"):
+        positions_text = "\n\nPOSICIONES ABIERTAS:\n"
+        for pos in portfolio["positions"]:
+            ticker = pos["ticker"]
+            if ticker in market_data and "current_price" in market_data[ticker]:
+                current = market_data[ticker]["current_price"]
+                entry = pos["entry_price"]
+                pnl_pct = round(((current - entry) / entry) * 100, 2)
+                positions_text += f"{ticker}: {pos['quantity']} @ {entry}€ → {current}€ ({pnl_pct:+}%)\n"
     
-    prompt = f"""
-NO incluyas título ni encabezado en tu respuesta. Ya se añade externamente.
-Eres un analista financiero experto y conciso. Fecha y hora actual: {today}
+    prompt = f"""Analista financiero experto. Fecha: {today}{positions_text}
 
-════════════════════════════════════════
-PORTFOLIO ACTUAL
-════════════════════════════════════════
+REGLAS: Stop-loss {rules['trading_rules']['stop_loss_percent']}%, Target {rules['trading_rules']['target_profit_percent']}%
+NO DISPONIBLE TR: {', '.join(blacklist) if blacklist else 'ninguno'}
 
-Capital total: {portfolio.get('total_value_eur', portfolio.get('cash_eur', 0))}€
-Efectivo disponible: {portfolio.get('cash_eur', 0)}€
-Posiciones abiertas: {len(positions_detail)}
+ANÁLISIS (máximo 200 palabras):
 
-{json.dumps(positions_detail, indent=2, ensure_ascii=False) if positions_detail else "Sin posiciones abiertas actualmente."}
+🌍 MACRO
+Riesgo mercado: BAJO/MEDIO/ALTO
+Razón: 1 línea (Fed, datos macro, geopolítica, festivos)
 
-════════════════════════════════════════
-DATOS MERCADO ACTUALES (tus acciones)
-════════════════════════════════════════
+💼 POSICIONES (si hay)
+Cada una: MANTENER/VENDER/AJUSTAR STOP
+Razón: 1 línea por posición
 
-{json.dumps(market_data, indent=2, ensure_ascii=False) if market_data else "Sin posiciones que monitorizar."}
+🎯 OPORTUNIDADES (0-3 tickers máximo)
+Solo incluir si pasa 4/4 checks:
+✅ Técnico (soporte claro, RSI<70)
+✅ Fundamental (P/E razonable, balance sano)  
+✅ Sentimiento (catalizador confirmado múltiples fuentes)
+✅ Timing (volumen >1M, mercado abierto, sin eventos inminentes)
 
-════════════════════════════════════════
-HISTORIAL ÚLTIMAS OPERACIONES
-════════════════════════════════════════
+Por cada oportunidad 4/4:
+- Ticker + razón compra en 1 línea
 
-{json.dumps(last_trades[-10:] if last_trades else [], indent=2, ensure_ascii=False) if last_trades else "Sin operaciones previas registradas."}
+Si ninguno pasa 4/4: omitir sección completa
 
-════════════════════════════════════════
-PATTERNS APRENDIDOS
-════════════════════════════════════════
+₿ CRYPTO
+BTC: ESPERAR/VIGILAR/ACTUAR (razón 3 palabras)
+ETH: ESPERAR/VIGILAR/ACTUAR (razón 3 palabras)
 
-{json.dumps(patterns, indent=2, ensure_ascii=False) if patterns else "Sin patterns aprendidos aún."}
+✅ RESUMEN EJECUTIVO
+2-3 líneas que condensen TODO el análisis.
+Debe ser autosuficiente: leyendo solo esto sé exactamente qué hacer hoy.
 
-════════════════════════════════════════
-REGLAS DE TRADING
-════════════════════════════════════════
-
-Stop-loss: {rules['trading_rules']['stop_loss_percent']}%
-Target profit: {rules['trading_rules']['target_profit_percent']}%
-Máximo posiciones simultáneas: {rules['trading_rules']['max_positions']}
-Reserva mínima efectivo: {rules['trading_rules']['min_cash_reserve_eur']}€
-Comisión Trade Republic: {rules['trade_republic_costs']['commission_eur']}€/operación
-Spread estimado: {rules['trade_republic_costs']['spread_percent_estimate']}%
-FX spread (USD/EUR): {rules['trade_republic_costs']['fx_spread_percent_usd_eur']}%
-Impuesto ganancias España: 19% (<6k€/año), 21% (6k-50k€), 26% (>50k€)
-
-════════════════════════════════════════
-TICKERS NO DISPONIBLES EN TRADE REPUBLIC
-════════════════════════════════════════
-
-{', '.join(blacklist) if blacklist else "Ninguno registrado aún."}
-
-════════════════════════════════════════
-INPUTS EXTERNOS
-════════════════════════════════════════
-
-{json.dumps(external_tips, indent=2, ensure_ascii=False) if external_tips else "Sin inputs externos hoy."}
-
-════════════════════════════════════════
-INSTRUCCIONES ANÁLISIS
-════════════════════════════════════════
-
-Realiza el siguiente análisis ORDENADO y CONCISO:
-
-1. 🌍 MACRO
-   - Eventos importantes hoy/semana (Fed, datos macro, geopolítica)
-   - Nivel riesgo: BAJO/MEDIO/ALTO + razón en 1 línea
-   - Si riesgo ALTO → recomendar cautela
-
-2. 💼 POSICIONES
-   Solo si hay posiciones abiertas:
-   - Estado (P&L, distancia stop/target)
-   - Recomendación: MANTENER/VENDER/AJUSTAR STOP
-   - Razón en 1 línea
-
-3. 🎯 OPORTUNIDADES
-   Solo si hay efectivo disponible:
-   Validar 4 checks antes de recomendar:
-   ✅ Técnico: soporte cercano, RSI <70
-   ✅ Fundamental: P/E razonable, balance sano
-   ✅ Sentimiento: catalizador confirmado
-   ✅ Timing: volumen >1M, mercado abierto
-   
-   4/4 ✅ → recomendar entrada con precio y cantidad
-   3/4 ✅ → "Esperar confirmación"
-   Menos de 3 → omitir
-   
-   ES VÁLIDO no recomendar nada hoy.
-   NO recomendar tickers no disponibles en TR.
-
-4. 🧮 COSTES (solo si hay operación propuesta)
-   - Coste entrada + salida + FX si aplica
-   - Ganancia neta real tras costes e impuestos (19%)
-
-5. 📨 INPUTS EXTERNOS
-   Solo si hay inputs:
-   - Validar cada tip con 4 checks
-   - Clasificar: Válido/Descartar/Vigilar + razón
-
-6. ₿ CRYPTO
-   Busca via web search noticias BTC y ETH últimas 24h.
-   NO precio exacto, sino:
-   - ¿Algo relevante ha pasado?
-   - Señal: COMPRAR/VENDER/MANTENER/VIGILAR
-   - Razón en 1 línea máximo
-
-7. 🎯 RESUMEN
-   - Acción principal hoy en 1 línea
-   - Riesgo general: BAJO/MEDIO/ALTO
-
-════════════════════════════════════════
-FORMATO OBLIGATORIO
-════════════════════════════════════════
-
-- MÁXIMO 250 palabras en total
-- Sin tablas
-- Sin secciones vacías (si no hay posiciones, omite esa sección)
-- Sin calculadora si no hay operación propuesta
-- Sin performance si no hay operaciones previas
-- Emojis en cada encabezado
-- Texto plano, sin markdown, sin asteriscos, sin #
-- Recomendaciones claras y directas
+IMPORTANTE:
+- Sin tablas, sin markdown, sin asteriscos
+- Directo y accionable
+- Si no hay oportunidades claras → no fuerces recomendaciones
+- Máximo 200 palabras TOTAL
 """
     
     return prompt
 
+
 def analyze_with_claude(prompt, config):
+    """Llama a Claude Opus 4.6 con el prompt construido."""
     
+    # MODO MOCK
     if config.get("mock_claude") == "true":
         logger.info("🔧 MOCK MODE - Sin llamada real a Claude")
-        return """
-⚠️ MODO TEST - Respuesta simulada, no real
+        return """⚠️ MODO TEST - Respuesta simulada
 
 🌍 MACRO: MEDIO
-Semana con datos importantes. Cautela moderada recomendada.
+Respuesta mockeada.
 
 💼 POSICIONES
-Sin posiciones abiertas.
+Respuesta mockeada.
 
 ₿ CRYPTO
-BTC: MANTENER - Consolidando en rango.
-ETH: VIGILAR - Debil frente a BTC.
+BTC: Mock
+ETH: Mock
 
-🎯 RESUMEN
-Sin operaciones recomendadas hoy. Esperar señal clara.
-Riesgo general: MEDIO
+✅ RESUMEN
+Mock.
 
-⚠️ ESTO ES UN TEST - Para análisis real cambiar quitar MOCK.
-"""
+⚠️ TEST - Eliminar MOCK para análisis real."""
 
-    """
-    Llama a Claude Opus 4.6 con el prompt construido.
-    """
+    # Llamada real a Claude
     client = anthropic.Anthropic(api_key=config["claude_api_key"])
-    
     logger.info("Llamando a Claude API...")
     
     message = client.messages.create(
         model="claude-opus-4-6",
-        max_tokens=4000,
+        max_tokens=1000,
         messages=[
             {
                 "role": "user",
@@ -383,7 +250,9 @@ Riesgo general: MEDIO
     
     return analysis
 
+
 def clean_for_telegram(text):
+    """Limpia markdown residual que Telegram no entiende."""
     import re
     text = re.sub(r'#{1,6}\s', '', text)
     text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
@@ -393,56 +262,30 @@ def clean_for_telegram(text):
     text = re.sub(r'\[(.*?)\]\(.*?\)', r'\1', text)
     return text
 
+
 def send_telegram(message_text, config):
-    """
-    Envía mensaje via Telegram Bot API.
-    Divide mensajes largos si superan límite Telegram (4096 chars).
-    """
+    """Envía mensaje via Telegram Bot API."""
     token = config["telegram_token"]
     chat_id = config["telegram_chat_id"]
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     
-    # Telegram tiene límite de 4096 caracteres por mensaje
-    max_length = 4000
-    
-    if len(message_text) <= max_length:
-        messages = [message_text]
-    else:
-        # Dividir en partes
-        messages = []
-        while len(message_text) > 0:
-            if len(message_text) <= max_length:
-                messages.append(message_text)
-                break
+    try:
+        response = requests.post(url, json={
+            "chat_id": chat_id,
+            "text": message_text
+        })
+        
+        if response.status_code == 200:
+            logger.info("✅ Telegram mensaje enviado")
+        else:
+            logger.error(f"❌ Error Telegram: {response.text}")
             
-            # Cortar en salto de línea más cercano
-            split_at = message_text[:max_length].rfind("\n")
-            if split_at == -1:
-                split_at = max_length
-            
-            messages.append(message_text[:split_at])
-            message_text = message_text[split_at:]
-    
-    for i, msg in enumerate(messages):
-        try:
-            response = requests.post(url, json={
-                "chat_id": chat_id,
-                "text": msg
-            })
-            
-            if response.status_code == 200:
-                logger.info(f"✅ Telegram mensaje {i+1}/{len(messages)} enviado")
-            else:
-                logger.error(f"❌ Error Telegram: {response.text}")
-                
-        except Exception as e:
-            logger.error(f"❌ Error enviando Telegram: {e}")
+    except Exception as e:
+        logger.error(f"❌ Error enviando Telegram: {e}")
+
 
 def save_results(analysis, config, portfolio):
-    """
-    Guarda log de ejecución en S3.
-    Solo en entorno AWS.
-    """
+    """Guarda log de ejecución en S3. Solo en entorno AWS."""
     environment = os.getenv("ENVIRONMENT", "aws")
     
     if environment == "local":
@@ -475,12 +318,9 @@ def save_results(analysis, config, portfolio):
     except Exception as e:
         logger.error(f"❌ Error guardando log: {e}")
 
+
 def lambda_handler(event, context):
-    """
-    Entry point principal.
-    AWS Lambda llama esta función automáticamente.
-    Para testing local: ejecutar main() directamente.
-    """
+    """Entry point principal."""
     logger.info("🚀 Iniciando análisis diario trading bot")
     
     try:
@@ -488,8 +328,8 @@ def lambda_handler(event, context):
         config = get_config()
         logger.info("✅ Config cargada")
         
-        # 2. Cargar portfolio e historial
-        portfolio, last_trades, patterns, blacklist, rules, external_tips = load_portfolio(config)
+        # 2. Cargar portfolio y blacklist
+        portfolio, blacklist, rules = load_portfolio(config)
         logger.info(f"✅ Portfolio cargado: {len(portfolio.get('positions', []))} posiciones")
         
         # 3. Datos mercado
@@ -497,10 +337,7 @@ def lambda_handler(event, context):
         logger.info(f"✅ Datos mercado: {len(market_data)} tickers")
         
         # 4. Construir prompt
-        prompt = build_prompt(
-            portfolio, market_data, last_trades,
-            patterns, blacklist, rules, external_tips
-        )
+        prompt = build_prompt(portfolio, market_data, blacklist, rules)
         logger.info("✅ Prompt construido")
         
         # 5. Análisis Claude
