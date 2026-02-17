@@ -2,6 +2,7 @@ import os
 import json
 import logging
 from datetime import datetime
+import time
 
 import anthropic
 import yfinance as yf
@@ -141,14 +142,11 @@ def get_market_data(portfolio):
     if portfolio.get("positions"):
         tickers = [p["ticker"] for p in portfolio["positions"]]
     
-    # Siempre incluir crypto
-    crypto_tickers = ["BTC-USD", "ETH-USD"]
-    all_tickers = list(set(tickers + crypto_tickers))
-    
     market_data = {}
     
-    for ticker in all_tickers:
+    for ticker in tickers:
         try:
+            time.sleep(5)
             stock = yf.Ticker(ticker)
             hist = stock.history(period="5d")
             info = stock.info
@@ -209,7 +207,8 @@ def build_prompt(portfolio, market_data, last_trades, patterns, blacklist, rules
             })
     
     prompt = f"""
-Eres un analista financiero experto. Fecha y hora actual: {today}
+NO incluyas título ni encabezado en tu respuesta. Ya se añade externamente.
+Eres un analista financiero experto y conciso. Fecha y hora actual: {today}
 
 ════════════════════════════════════════
 PORTFOLIO ACTUAL
@@ -222,10 +221,10 @@ Posiciones abiertas: {len(positions_detail)}
 {json.dumps(positions_detail, indent=2, ensure_ascii=False) if positions_detail else "Sin posiciones abiertas actualmente."}
 
 ════════════════════════════════════════
-DATOS MERCADO ACTUALES
+DATOS MERCADO ACTUALES (tus acciones)
 ════════════════════════════════════════
 
-{json.dumps(market_data, indent=2, ensure_ascii=False)}
+{json.dumps(market_data, indent=2, ensure_ascii=False) if market_data else "Sin posiciones que monitorizar."}
 
 ════════════════════════════════════════
 HISTORIAL ÚLTIMAS OPERACIONES
@@ -268,85 +267,66 @@ INPUTS EXTERNOS
 INSTRUCCIONES ANÁLISIS
 ════════════════════════════════════════
 
-Realiza el siguiente análisis COMPLETO y ORDENADO:
+Realiza el siguiente análisis ORDENADO y CONCISO:
 
-1. CONTEXTO MACRO
-   - Busca eventos importantes hoy/esta semana (Fed, datos macro, geopolítica)
-   - Evalúa impacto en mercados
-   - Nivel riesgo macro: BAJO/MEDIO/ALTO
-   - Si riesgo ALTO → recomendar cautela general
+1. 🌍 MACRO
+   - Eventos importantes hoy/semana (Fed, datos macro, geopolítica)
+   - Nivel riesgo: BAJO/MEDIO/ALTO + razón en 1 línea
+   - Si riesgo ALTO → recomendar cautela
 
-2. ANÁLISIS POSICIONES ACTUALES
-   Para cada posición:
-   - Estado actual (precio, P&L, distancia stop/target)
-   - Noticias últimas 24h relevantes
-   - Análisis técnico (momentum, soportes/resistencias)
-   - Correlaciones entre posiciones (avisar si >70% correlacionado)
-   - Eventos corporativos próximos (earnings, dividendos, splits)
-   - Recomendación clara: MANTENER / VENDER / VENDER PARCIAL / AJUSTAR STOP
+2. 💼 POSICIONES
+   Solo si hay posiciones abiertas:
+   - Estado (P&L, distancia stop/target)
+   - Recomendación: MANTENER/VENDER/AJUSTAR STOP
+   - Razón en 1 línea
 
-3. NUEVAS OPORTUNIDADES (solo si hay efectivo disponible O swap vale la pena)
-   Para cada oportunidad validar 4 CHECKS:
-   ✅ Técnico: Precio cerca soporte, RSI <70
+3. 🎯 OPORTUNIDADES
+   Solo si hay efectivo disponible:
+   Validar 4 checks antes de recomendar:
+   ✅ Técnico: soporte cercano, RSI <70
    ✅ Fundamental: P/E razonable, balance sano
-   ✅ Sentimiento: Catalizador confirmado múltiples fuentes
-   ✅ Timing: Volumen >1M diario, no pre-market errático
+   ✅ Sentimiento: catalizador confirmado
+   ✅ Timing: volumen >1M, mercado abierto
    
-   Solo recomendar si 4/4 ✅
-   Si 3/4 → "Esperar confirmación"
-   Si <3/4 → No mencionar
+   4/4 ✅ → recomendar entrada con precio y cantidad
+   3/4 ✅ → "Esperar confirmación"
+   Menos de 3 → omitir
    
-   NO recomendar tickers de la lista de no disponibles TR.
-   ES PERFECTAMENTE VÁLIDO no recomendar ninguna entrada hoy.
+   ES VÁLIDO no recomendar nada hoy.
+   NO recomendar tickers no disponibles en TR.
 
-4. CALCULADORA COSTES (para cada operación propuesta)
-   Calcular:
-   - Comisión entrada: 1€
-   - Spread entrada ({rules['trade_republic_costs']['spread_percent_estimate']}%): X€
-   - FX entrada si USD ({rules['trade_republic_costs']['fx_spread_percent_usd_eur']}%): X€
-   - Total costes entrada: X€
-   - Comisión salida: 1€
-   - Spread salida: X€
-   - FX salida si USD: X€
-   - Total costes salida: X€
-   - TOTAL COSTES OPERACIÓN: X€
-   - Breakeven necesario: X%
-   - Ganancia bruta con target {rules['trading_rules']['target_profit_percent']}%: X€
-   - Menos costes: X€
-   - Menos impuestos (19%): X€
-   - GANANCIA NETA REAL: X€ (Y%)
+4. 🧮 COSTES (solo si hay operación propuesta)
+   - Coste entrada + salida + FX si aplica
+   - Ganancia neta real tras costes e impuestos (19%)
 
-5. GESTIÓN RIESGO PORTFOLIO
-   - Exposición por sector
-   - Exposición geográfica (USA/Europa/Crypto)
-   - Correlación general
-   - Alertas si concentración >40% en sector/país
+5. 📨 INPUTS EXTERNOS
+   Solo si hay inputs:
+   - Validar cada tip con 4 checks
+   - Clasificar: Válido/Descartar/Vigilar + razón
 
-6. ANÁLISIS INPUTS EXTERNOS
-   Para cada input (Zumitow/amigos):
-   - Contexto completo (NO aislar ticker del contexto)
-   - Validar con datos reales
-   - Clasificar: Oportunidad válida / Descartar / Vigilar
+6. ₿ CRYPTO
+   Busca via web search noticias BTC y ETH últimas 24h.
+   NO precio exacto, sino:
+   - ¿Algo relevante ha pasado?
+   - Señal: COMPRAR/VENDER/MANTENER/VIGILAR
+   - Razón en 1 línea máximo
 
-7. CRYPTO
-   - BTC y ETH: precio, cambio 24h, niveles clave
-   - Solo señal si oportunidad excepcional
+7. 🎯 RESUMEN
+   - Acción principal hoy en 1 línea
+   - Riesgo general: BAJO/MEDIO/ALTO
 
-8. PERFORMANCE Y APRENDIZAJE
-   - Win rate actual
-   - Patterns que están funcionando
-   - Ajustes estrategia si procede
+════════════════════════════════════════
+FORMATO OBLIGATORIO
+════════════════════════════════════════
 
-9. RESUMEN EJECUTIVO
-   - 3-4 líneas máximo
-   - Acción principal recomendada hoy
-   - Nivel riesgo general: BAJO/MEDIO/ALTO
-
-FORMATO SALIDA:
-- Usa emojis para facilitar lectura rápida
-- Sé conciso pero completo
-- Solo información accionable
-- Evita repeticiones
+- MÁXIMO 250 palabras en total
+- Sin tablas
+- Sin secciones vacías (si no hay posiciones, omite esa sección)
+- Sin calculadora si no hay operación propuesta
+- Sin performance si no hay operaciones previas
+- Emojis en cada encabezado
+- Texto plano, sin markdown, sin asteriscos, sin #
+- Recomendaciones claras y directas
 """
     
     return prompt
@@ -378,6 +358,16 @@ def analyze_with_claude(prompt, config):
     logger.info(f"Coste estimado: ${(message.usage.input_tokens * 5 + message.usage.output_tokens * 25) / 1_000_000:.4f}")
     
     return analysis
+
+def clean_for_telegram(text):
+    import re
+    text = re.sub(r'#{1,6}\s', '', text)
+    text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
+    text = re.sub(r'\*(.*?)\*', r'\1', text)
+    text = re.sub(r'`(.*?)`', r'\1', text)
+    text = re.sub(r'```[\s\S]*?```', '', text)
+    text = re.sub(r'\[(.*?)\]\(.*?\)', r'\1', text)
+    return text
 
 def send_telegram(message_text, config):
     """
@@ -413,8 +403,7 @@ def send_telegram(message_text, config):
         try:
             response = requests.post(url, json={
                 "chat_id": chat_id,
-                "text": msg,
-                "parse_mode": "Markdown"
+                "text": msg
             })
             
             if response.status_code == 200:
@@ -495,8 +484,8 @@ def lambda_handler(event, context):
         logger.info("✅ Análisis Claude completado")
         
         # 6. Enviar Telegram
-        header = f"📊 *ANÁLISIS DIARIO - {datetime.now().strftime('%d/%m/%Y %H:%M')} CET*\n\n"
-        send_telegram(header + analysis, config)
+        header = f"📊 ANÁLISIS - {datetime.now().strftime('%d/%m/%Y %H:%M')} CET\n\n"
+        send_telegram(header + clean_for_telegram(analysis), config)
         logger.info("✅ Telegram enviado")
         
         # 7. Guardar resultados
