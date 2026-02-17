@@ -9,6 +9,7 @@ Analizar portfolio de trading diariamente, validar oportunidades con múltiples 
 ## 🏗️ Arquitectura
 
 ### Servicios AWS
+
 - **Lambda**: 3 funciones (análisis diario, consolidación mensual, Telegram handler)
 - **EventBridge**: Triggers programados (8:00 CET diario + mensual)
 - **S3**: Storage histórico operaciones y patterns aprendidos
@@ -16,6 +17,7 @@ Analizar portfolio de trading diariamente, validar oportunidades con múltiples 
 - **CloudWatch**: Logs y monitoring
 
 ### Integrations
+
 - **Claude API** (Opus 4.6): Motor análisis IA
 - **Telegram Bot**: Interface usuario
 - **Trade Republic**: Broker (actualización manual portfolio v1)
@@ -25,6 +27,7 @@ Analizar portfolio de trading diariamente, validar oportunidades con múltiples 
 ## 📊 Funcionalidades
 
 ### Análisis Matinal (8:00 CET)
+
 1. **Contexto Macro**: Eventos Fed, geopolítica, datos económicos
 2. **Análisis Posiciones**: Correlaciones, eventos corporativos, recomendaciones
 3. **Validación Anti-FOMO**: 4 checks (técnico, fundamental, sentimiento, timing)
@@ -35,6 +38,7 @@ Analizar portfolio de trading diariamente, validar oportunidades con múltiples 
 8. **Tracking Performance**: Win rate, patterns aprendidos
 
 ### Comandos Telegram
+
 ```
 /portfolio - Estado posiciones actuales
 /balance - Ganancias/pérdidas totales
@@ -47,6 +51,7 @@ Analizar portfolio de trading diariamente, validar oportunidades con múltiples 
 ```
 
 ### Consolidación Mensual (automática)
+
 - Análisis operaciones del mes
 - Identificación patterns exitosos/fallidos
 - Insights consolidados para aprendizaje
@@ -54,11 +59,13 @@ Analizar portfolio de trading diariamente, validar oportunidades con múltiples 
 - Optimización tokens API
 
 ### Simulador Paralelo
+
 - Portfolio virtual ejecuta todas recomendaciones
 - Comparación mensual: Real vs Simulado
 - Identifica desviaciones decisiones
 
 ## 📁 Estructura Proyecto
+
 ```
 trading-bot/
 ├── README.md
@@ -66,9 +73,9 @@ trading-bot/
 ├── .gitignore
 ├── docs/
 │   ├── architecture.md
-│   ├── setup-guide.md 
-│   ├── api-costs.md  
-│   └── telegram-commands.md 
+│   ├── setup-guide.md
+│   ├── api-costs.md
+│   └── telegram-commands.md
 ├── lambdas/
 │   ├── daily_analysis/
 │   │   ├── handler.py
@@ -82,13 +89,13 @@ trading-bot/
 │       ├── handler.py
 │       └── requirements.txt
 ├── config/
-│   ├── rules.json.example  
+│   ├── rules.json.example
 │   └── aws/
-│       └── infrastructure.yaml  
+│       └── infrastructure.yaml
 ├── scripts/
-│   ├── deploy.sh 
-│   ├── test_local.py 
-│   └── setup_aws.sh 
+│   ├── deploy.sh
+│   ├── test_local.py
+│   └── setup_aws.sh
 └── tests/
     ├── test_analysis.py
     └── test_telegram.py
@@ -104,30 +111,35 @@ trading-bot/
 ## 📈 Roadmap
 
 ### v0.1 (Setup Básico)
+
 - [x] Estructura repo
 - [ ] Lambda daily_analysis funcional
 - [ ] S3 storage configurado
 - [ ] Telegram bot básico
 
 ### v0.2 (Análisis Completo)
+
 - [ ] Validación anti-FOMO
 - [ ] Calculadora costes completa
 - [ ] Contexto macro integrado
 - [ ] Parsing Zumitow
 
 ### v0.3 (Aprendizaje)
+
 - [ ] Tracking performance
 - [ ] Post-mortem automático
 - [ ] Consolidación mensual
 - [ ] Simulador paralelo
 
 ### v1.0 (Producción)
+
 - [ ] Sistema completo funcionando
 - [ ] Documentación completa
 - [ ] Testing automatizado
 - [ ] Monitoring y alertas
 
 ### v2.0 (Futuro)
+
 - [ ] Integración API Trade Republic
 - [ ] CI/CD con GitHub Actions
 - [ ] Alertas intraday
@@ -147,9 +159,10 @@ Uso personal. Todos los derechos reservados.
 
 ## 👤 Autor
 
-**Victor Santiago**
+### Victor Santiago
+
 - GitHub: [@vthewolf](https://github.com/vthewolf)
-- Email: vsantiagoferrera@gmail.com
+- Email: <vsantiagoferrera@gmail.com>
 
 ---
 
