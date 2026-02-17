@@ -150,7 +150,7 @@ def get_updates(config, offset=None):
 def cmd_help():
     """Retorna mensaje de ayuda con todos los comandos."""
     return """
-🤖 WALLSTREETWOLF - COMANDOS DISPONIBLES
+🤖 TRADING ASSISTANT - COMANDOS DISPONIBLES
 
 💰 OPERACIONES
 
