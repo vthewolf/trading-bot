@@ -32,7 +32,8 @@ def get_config():
             "telegram_token": os.getenv("TELEGRAM_TOKEN"),
             "telegram_chat_id": os.getenv("TELEGRAM_CHAT_ID"),
             "s3_bucket": os.getenv("S3_BUCKET"),
-            "aws_region": os.getenv("AWS_REGION", "eu-west-1")
+            "aws_region": os.getenv("AWS_REGION", "eu-west-1"),
+            "mock_claude": os.getenv("MOCK_CLAUDE", "false")
         }
     
     else:
@@ -332,6 +333,29 @@ FORMATO OBLIGATORIO
     return prompt
 
 def analyze_with_claude(prompt, config):
+    
+    if config.get("mock_claude") == "true":
+        logger.info("🔧 MOCK MODE - Sin llamada real a Claude")
+        return """
+⚠️ MODO TEST - Respuesta simulada, no real
+
+🌍 MACRO: MEDIO
+Semana con datos importantes. Cautela moderada recomendada.
+
+💼 POSICIONES
+Sin posiciones abiertas.
+
+₿ CRYPTO
+BTC: MANTENER - Consolidando en rango.
+ETH: VIGILAR - Debil frente a BTC.
+
+🎯 RESUMEN
+Sin operaciones recomendadas hoy. Esperar señal clara.
+Riesgo general: MEDIO
+
+⚠️ ESTO ES UN TEST - Para análisis real cambiar quitar MOCK.
+"""
+
     """
     Llama a Claude Opus 4.6 con el prompt construido.
     """

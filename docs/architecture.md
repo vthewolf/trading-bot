@@ -1,6 +1,7 @@
 # Arquitectura del Sistema
 
 ## Diagrama de Flujo Principal
+
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │                     SISTEMA TRADING BOT                      │
@@ -75,6 +76,7 @@
 ### Lambda Functions
 
 #### daily_analysis
+
 - **Runtime:** Python 3.12
 - **Memoria:** 512 MB
 - **Timeout:** 60s
@@ -86,6 +88,7 @@
 - **Ejecuciones/mes:** ~30
 
 #### monthly_consolidation
+
 - **Runtime:** Python 3.12
 - **Memoria:** 256 MB
 - **Timeout:** 120s
@@ -95,6 +98,7 @@
 - **Ejecuciones/mes:** 1
 
 #### telegram_handler
+
 - **Runtime:** Python 3.12
 - **Memoria:** 128 MB
 - **Timeout:** 30s
@@ -106,6 +110,7 @@
 ### S3 Bucket: trading-system-data
 
 **Estructura:**
+
 ```
 trading-system-data/
 ├── portfolio/
@@ -125,6 +130,7 @@ trading-system-data/
 ```
 
 **Configuración:**
+
 - Región: eu-west-1 (Irlanda)
 - Versionado: Deshabilitado
 - Encriptación: SSE-S3 (default)
@@ -133,6 +139,7 @@ trading-system-data/
 ### Parameter Store (Systems Manager)
 
 **Parámetros:**
+
 ```
 /trading-bot/claude-api-key      Type: SecureString
 /trading-bot/telegram-token      Type: SecureString
@@ -140,6 +147,7 @@ trading-system-data/
 ```
 
 **Configuración:**
+
 - Región: eu-west-1
 - Tier: Standard
 - KMS: Default AWS managed key
@@ -147,6 +155,7 @@ trading-system-data/
 ### EventBridge Rules
 
 **daily-analysis-trigger:**
+
 ```
 Schedule: cron(0 7 * * ? *)  # 8:00 CET (7:00 UTC)
 Target: Lambda daily_analysis
@@ -154,6 +163,7 @@ Enabled: Yes
 ```
 
 **monthly-consolidation-trigger:**
+
 ```
 Schedule: cron(0 1 1 * ? *)  # 2:00 CET día 1 mes
 Target: Lambda monthly_consolidation
@@ -163,6 +173,7 @@ Enabled: Yes
 ### IAM Role: lambda-trading-bot-role
 
 **Permisos necesarios:**
+
 ```json
 {
   "Version": "2012-10-17",
@@ -170,11 +181,7 @@ Enabled: Yes
     {
       "Sid": "S3Access",
       "Effect": "Allow",
-      "Action": [
-        "s3:GetObject",
-        "s3:PutObject",
-        "s3:ListBucket"
-      ],
+      "Action": ["s3:GetObject", "s3:PutObject", "s3:ListBucket"],
       "Resource": [
         "arn:aws:s3:::trading-system-data",
         "arn:aws:s3:::trading-system-data/*"
@@ -183,10 +190,7 @@ Enabled: Yes
     {
       "Sid": "ParameterStoreAccess",
       "Effect": "Allow",
-      "Action": [
-        "ssm:GetParameter",
-        "ssm:GetParameters"
-      ],
+      "Action": ["ssm:GetParameter", "ssm:GetParameters"],
       "Resource": "arn:aws:ssm:eu-west-1:*:parameter/trading-bot/*"
     },
     {
@@ -208,11 +212,13 @@ Enabled: Yes
 ### 1. Análisis Matinal (8:00 CET)
 
 **Input:**
+
 - S3: current_positions.json, last_30_trades.json, patterns_learned.json
 - Parameter Store: claude-api-key, telegram-token
 - Web search: noticias últimas 24h, contexto macro
 
 **Procesamiento:**
+
 1. Contexto macro (Fed, geopolítica, datos económicos)
 2. Análisis posiciones actuales (correlaciones, eventos)
 3. Validación anti-FOMO (4 checks: técnico, fundamental, sentimiento, timing)
@@ -223,6 +229,7 @@ Enabled: Yes
 8. Tracking performance (win rate, patterns)
 
 **Output:**
+
 - Telegram: mensaje análisis formateado
 - S3: actualiza datos si cambios
 - CloudWatch Logs: métricas ejecución
@@ -232,6 +239,7 @@ Enabled: Yes
 **Ejemplo: `/compra AAPL 2 180.50`**
 
 **Flujo:**
+
 1. Emvío de comandos → Telegram API
 2. daily_analysis polling detecta mensaje
 3. Llama telegram_handler
@@ -245,9 +253,11 @@ Enabled: Yes
 ### 3. Consolidación Mensual (día 1 mes)
 
 **Input:**
+
 - S3: operations_full.csv (todas operaciones)
 
 **Procesamiento:**
+
 1. Lee CSV completo
 2. Filtra operaciones mes pasado
 3. Claude API: "Analiza estas N operaciones, identifica patterns"
@@ -257,17 +267,20 @@ Enabled: Yes
 7. Archiva operaciones >3 meses
 
 **Output:**
+
 - S3: patterns_learned.json, monthly_performance.json, last_30_trades.json
 - CloudWatch Logs: resumen procesamiento
 
 ## Optimización Tokens API
 
 ### Problema
+
 Histórico crece infinitamente → tokens crecen → coste crece
 
 ### Solución: Ventana Deslizante + Agregación
 
 **Análisis diario recibe (tokens fijos):**
+
 ```
 PORTFOLIO ACTUAL (~200 tokens):
 {current_positions.json completo}
@@ -291,6 +304,7 @@ TOTAL: ~1150 tokens (NO CRECE)
 ```
 
 **Consolidación mensual:**
+
 - Analiza mes completo (puede usar 5K tokens)
 - Genera insights compactos (300 tokens)
 - Próximo mes: usa insights, no raw data
@@ -300,20 +314,24 @@ TOTAL: ~1150 tokens (NO CRECE)
 ## Seguridad
 
 ### Secrets Management
+
 - API keys en Parameter Store (SecureString)
 - .gitignore excluye credenciales
 
 ### IAM Least Privilege
+
 - Lambda solo accede S3 bucket específico
-- Solo lee parámetros /trading-bot/*
+- Solo lee parámetros /trading-bot/\*
 - No permisos delete/modify config
 
 ### Telegram Bot
+
 - Token guardado seguro
 - Solo responde a tu chat_id
 - Comandos validados antes ejecutar
 
 ### Billing Alerts
+
 - Alerta $1, $3, $5/mes
 - CloudWatch alarm si Lambda errors >5%
 - Email notificación automática
@@ -321,12 +339,14 @@ TOTAL: ~1150 tokens (NO CRECE)
 ## Monitoring
 
 ### CloudWatch Metrics
+
 - Lambda invocations/día
 - Lambda errors/día
 - Lambda duration average
 - S3 PUT/GET operations
 
 ### CloudWatch Logs
+
 - Cada ejecución Lambda loguea:
   - Timestamp inicio/fin
   - Portfolio estado
@@ -334,6 +354,7 @@ TOTAL: ~1150 tokens (NO CRECE)
   - Errores si aplica
 
 ### Alertas
+
 - Error rate >10% → Email
 - Ejecución >50s → Email (cerca timeout)
 - Coste AWS >$3/mes → Email
@@ -343,21 +364,25 @@ TOTAL: ~1150 tokens (NO CRECE)
 ### v2.0 Posibles Mejoras
 
 **Alertas Intraday:**
+
 - Lambda adicional cada 2h
 - Solo ejecuta si evento crítico
 - +1€/mes coste
 
 **API Trade Republic:**
+
 - Lectura portfolio automática
 - Sin actualización manual
 - Requiere pytr (no oficial)
 
 **CI/CD GitHub Actions:**
+
 - Deploy automático merge a main
 - Testing automatizado
 - Rollback si falla
 
 **Dashboard Web:**
+
 - S3 static website
 - Visualización portfolio
 - Gráficos performance
