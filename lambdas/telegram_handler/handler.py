@@ -124,25 +124,6 @@ def send_telegram(message_text, config):
     except Exception as e:
         logger.error(f"❌ Error enviando Telegram: {e}")
 
-
-def get_updates(config, offset=None):
-    """Obtiene mensajes nuevos del bot."""
-    token = config["telegram_token"]
-    url = f"https://api.telegram.org/bot{token}/getUpdates"
-
-    params = {"timeout": 0}
-    if offset:
-        params["offset"] = offset
-
-    try:
-        response = requests.get(url, params=params)
-        if response.status_code == 200:
-            return response.json().get("result", [])
-    except Exception as e:
-        logger.error(f"❌ Error getUpdates: {e}")
-    return []
-
-
 # ════════════════════════════════════════
 # COMANDOS
 # ════════════════════════════════════════
@@ -645,39 +626,49 @@ def process_command(text, s3, config):
 # ════════════════════════════════════════
 
 def lambda_handler(event, context):
-    logger.info("🤖 Telegram handler iniciado")
-
-    config = get_config()
-    s3 = boto3.client("s3", region_name=config["aws_region"])
-
-    updates = get_updates(config)
-
-    if not updates:
-        logger.info("Sin mensajes nuevos")
-        return {"statusCode": 200, "body": "Sin mensajes"}
-
-    # Obtener último update_id para no reprocesar
-    last_update_id = max(u["update_id"] for u in updates)
-
-    for update in updates:
-        message = update.get("message", {})
+    """
+    Entry point webhook.
+    Telegram llama directamente cuando el usuario escribe.
+    """
+    logger.info("🤖 Telegram webhook recibido")
+    
+    try:
+        config = get_config()
+        s3 = boto3.client("s3", region_name=config["aws_region"])
+        
+        # Parsear evento de Telegram
+        body = json.loads(event.get("body", "{}"))
+        message = body.get("message", {})
         text = message.get("text", "")
-
+        
         if not text:
-            continue
-
+            logger.info("Mensaje sin texto, ignorando")
+            return {"statusCode": 200, "body": "OK"}
+        
         logger.info(f"Mensaje recibido: {text}")
+        
+        # Procesar comando
         response = process_command(text, s3, config)
-
+        
         if response:
             send_telegram(response, config)
+        
+        return {"statusCode": 200, "body": "OK"}
+        
+    except Exception as e:
+        logger.error(f"❌ Error procesando webhook: {e}")
+        return {"statusCode": 500, "body": "Error"}
 
-    # Marcar updates como procesados
-    get_updates(config, offset=last_update_id + 1)
 
-    return {"statusCode": 200, "body": f"{len(updates)} mensajes procesados"}
-
-
-# Para testing local
+# Para testing local - simula webhook
 if __name__ == "__main__":
-    lambda_handler({}, {})
+    # Simula evento de Telegram webhook
+    mock_event = {
+        "body": json.dumps({
+            "message": {
+                "text": "/help",
+                "chat": {"id": int(os.getenv("TELEGRAM_CHAT_ID", "0"))}
+            }
+        })
+    }
+    lambda_handler(mock_event, {})
