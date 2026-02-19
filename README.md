@@ -9,15 +9,6 @@ Autonomous trading analysis system powered by Claude Opus 4.6 that provides dail
 - **Risk Management**: Built-in anti-FOMO checks, stop-loss tracking, and position sizing rules
 - **Learning System**: Identifies patterns from your trading history (v1.1 coming soon)
 
-## 💰 Cost
-
-**$0.30/month** (within AWS Free Tier + Claude API)
-
-- AWS: $0.00 (Free Tier covers all services)
-- Claude Opus 4.6 API: ~$0.30/month
-  - Daily analysis: ~478 input tokens, ~319 output tokens
-  - 30 days × $0.01 = $0.30
-
 ## 🏗️ Tech Stack
 
 **Cloud Infrastructure:**
