@@ -10,20 +10,20 @@ Complete architecture overview, data flow, and service interactions.
 
 ### Diagram Components:
 
-**Services (AWS icons):**
+**Services:**
 
-- EventBridge (clock icon)
+- EventBridge
 - Lambda (λ) - 2 functions
-- S3 (bucket icon)
-- Parameter Store (lock icon)
-- API Gateway (gateway icon)
-- CloudWatch Logs (logs icon)
+- S3
+- Parameter Store
+- API Gateway
+- CloudWatch Logs
 
 **External:**
 
-- Claude API (Anthropic logo or AI icon)
-- Telegram (Telegram icon)
-- User (person icon)
+- Claude API
+- Telegram
+- User
 
 ### Diagram Flow Description:
 
@@ -74,16 +74,16 @@ Complete architecture overview, data flow, and service interactions.
 - Learned patterns (`patterns_learned.json`)
 - Configuration (`rules.json`, `tickers_blacklist.txt`)
 
-**3. Secrets (Parameter Store)**
+**3. Secrets**
 
 - Claude API key (SecureString)
 - Telegram bot token (SecureString)
-- Telegram chat ID (String)
+- Telegram chat ID (SecureString)
 
 **4. Triggers**
 
 - EventBridge: Daily cron (8:00 AM CET)
-- API Gateway: Telegram webhook (instant)
+- API Gateway: Telegram webhook
 
 **5. External APIs**
 
@@ -109,9 +109,9 @@ Complete architecture overview, data flow, and service interactions.
    - Blacklist from S3 (`tickers_blacklist.txt`)
 3. Lambda fetches market data (yfinance):
    - Current prices for open positions
-4. Lambda builds optimized prompt (478 tokens avg)
+4. Lambda builds optimized promp
 5. Lambda calls Claude Opus 4.6 API
-6. Claude analyzes and returns response (319 tokens avg)
+6. Claude analyzes and returns response
 7. Lambda sends formatted message to Telegram
 8. Lambda logs execution to CloudWatch
 9. Lambda saves analysis log to S3
@@ -146,8 +146,6 @@ Complete architecture overview, data flow, and service interactions.
 9. Lambda logs execution to CloudWatch
 
 **Duration:** ~2-5 seconds
-
-**Cost per execution:** $0.000 (within Free Tier limits)
 
 ---
 
@@ -371,7 +369,7 @@ trading-bot-data-victor/
 
 **2. Output limiting**
 
-- max_tokens=1000 (hard cap prevents verbose responses)
+- max_tokens=1000
 - 200-word limit in prompt instructions
 
 **3. Lambda right-sizing**
