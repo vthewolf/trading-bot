@@ -48,5 +48,3 @@ Complete setup guide: [docs/setup/](docs/setup/)
 ## 📊 Architecture
 
 See [docs/technical/architecture.md](docs/technical/architecture.md) for detailed architecture diagram and data flow.
-
-**High-level:**
