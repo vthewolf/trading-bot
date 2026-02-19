@@ -1,0 +1,50 @@
+{
+  "trading_rules": {
+    "stop_loss_percent": -10,
+    "target_profit_percent": 20,
+    "max_positions": 3,
+    "min_cash_reserve_eur": 500,
+    "max_position_size_percent": 40
+  },
+  "risk_management": {
+    "max_sector_exposure_percent": 40,
+    "max_correlation_alert": 70,
+    "max_single_country_exposure": 70
+  },
+  "tax_rates_spain": {
+    "tier_1": {
+      "limit_eur": 6000,
+      "rate_percent": 19
+    },
+    "tier_2": {
+      "limit_eur": 50000,
+      "rate_percent": 21
+    },
+    "tier_3": {
+      "limit_eur": 200000,
+      "rate_percent": 26
+    },
+    "tier_4": {
+      "rate_percent": 28
+    }
+  },
+  "trade_republic_costs": {
+    "commission_eur": 1,
+    "spread_percent_estimate": 0.2,
+    "fx_spread_percent_usd_eur": 0.3
+  },
+  "analysis_config": {
+    "anti_fomo_checks_required": 4,
+    "min_volume_daily": 1000000,
+    "max_rsi_buy": 70,
+    "min_sentiment_sources": 3
+  },
+  "notifications": {
+    "telegram_enabled": true,
+    "email_enabled": false
+  },
+  "data_retention": {
+    "detailed_trades_months": 3,
+    "aggregated_data_years": 10
+  }
+}

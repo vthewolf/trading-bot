@@ -1,0 +1,11 @@
+# AWS SDK
+boto3==1.37.1
+
+# Telegram
+python-telegram-bot==21.10
+
+# HTTP requests
+requests==2.32.3
+
+# Environment variables
+python-dotenv==1.0.1
