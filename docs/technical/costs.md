@@ -58,14 +58,14 @@ Total: $0.01036 per analysis
 
 ### Cost Optimization History
 
-**Version 1 (Pre-optimization):**
+**Version 0.1 (Pre-optimization):**
 
 - Input: ~9,000 tokens
 - Output: ~15,000 tokens
 - Cost per execution: $0.36
 - **Monthly: $10.80**
 
-**Version 2 (Current - Optimized):**
+**Version 1.0 (Current - Optimized):**
 
 - Input: 478 tokens (95% reduction ⬇️)
 - Output: 319 tokens (98% reduction ⬇️)
